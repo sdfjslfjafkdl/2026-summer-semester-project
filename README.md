@@ -1,7 +1,7 @@
 # 충북 지방소멸대응기금 성과분석 API
 
 집행률이 아니라 **청년 순이동률**로 기금 성과를 평가하는 백엔드. 프론트엔드 목업
-(https://impact-advisor-ai.lovable.app)에 실제 데이터를 공급한다.
+(https://impact-advisor-ai.lovable.app/)에 실제 데이터를 공급한다.
 
 ## 계층
 
