@@ -1,0 +1,58 @@
+{
+  "artifact_version": "v1",
+  "generated_at": "2026-08-18T21:29:51+09:00",
+  "generated_by": "scripts/build_artifacts.py",
+  "method": "two_way_fixed_effects_ols",
+  "method_label_ko": "양방향 고정효과 DID (TWFE)",
+  "outcome": "youth_net_migration_rate_per_1000",
+  "outcome_unit": "명/천명",
+  "treated_regions": [
+    "제천시",
+    "보은군",
+    "옥천군",
+    "영동군",
+    "괴산군",
+    "단양군"
+  ],
+  "control_regions": [
+    "청주시",
+    "충주시",
+    "증평군",
+    "진천군",
+    "음성군"
+  ],
+  "treatment_start": "2022-01",
+  "sample_period": "2017-01~2024-12",
+  "coefficient": 0.9496181198273366,
+  "standard_error": 1.2447543537087846,
+  "standard_error_type": "clustered_by_municipality",
+  "t_statistic": 0.762896001928348,
+  "p_value": 0.46314203447465774,
+  "ci_95": [
+    -1.823867416850271,
+    3.7231036565049442
+  ],
+  "alpha": 0.05,
+  "is_significant": false,
+  "significance_label_ko": "통계적으로 유의하지 않음",
+  "n_observations": 1056,
+  "n_clusters": 11,
+  "r_squared": 0.25505836764471757,
+  "n_model_parameters": 107,
+  "treated_pre_mean": -4.710246832861368,
+  "treated_post_mean": -3.810925393560115,
+  "control_pre_mean": 0.21198316302062653,
+  "control_post_mean": 0.1616864824945462,
+  "simple_did_mean_difference": 0.9496181198273335,
+  "interpretation_cautions": [
+    "Clustered by municipality; only 11 clusters, so inference is exploratory.",
+    "이 결과는 기금 사업의 정확한 착수월과 사업별 집행시점, 전국·타시도 비교군이 없는 상태의 초기 탐색적 베이스라인이다.",
+    "시군 11개와 군집 11개라는 작은 표본이므로 p값을 확정적 인과추론의 근거로 제시하면 안 된다.",
+    "발표에서는 '효과 검증 파이프라인 및 1차 추정'으로 표현하고, 사업 착수월 확보 후 event-study·시차 DID로 고도화하는 것이 적절하다.",
+    "기금 변수는 연도값을 12개월에 결합한 구조여서 월별 효과의 시점 해석에 제한이 있다."
+  ],
+  "source_files": [
+    "chungbuk_baseline_results.json",
+    "README_chungbuk_model_panel.md"
+  ]
+}

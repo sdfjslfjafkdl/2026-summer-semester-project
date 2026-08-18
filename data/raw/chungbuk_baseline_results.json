@@ -1,0 +1,52 @@
+{
+  "did": {
+    "type": "two_way_fixed_effects_ols",
+    "outcome": "youth_net_migration_rate_per_1000",
+    "n_observations": 1056,
+    "n_regions": 11,
+    "treated_pre_mean": -4.710246832861368,
+    "treated_post_mean": -3.810925393560115,
+    "control_pre_mean": 0.21198316302062653,
+    "control_post_mean": 0.1616864824945462,
+    "simple_did_mean_difference": 0.9496181198273335,
+    "twfe_coefficient": 0.9496181198273366,
+    "clustered_standard_error": 1.2447543537087846,
+    "clustered_t_statistic": 0.762896001928348,
+    "clustered_p_value": 0.46314203447465774,
+    "clustered_ci_95": [
+      -1.823867416850271,
+      3.7231036565049442
+    ],
+    "cluster_inference_df": 10,
+    "r_squared": 0.25505836764471757,
+    "n_model_parameters": 107,
+    "standard_error_note": "Clustered by municipality; only 11 clusters, so inference is exploratory."
+  },
+  "out_of_time_validation": {
+    "type": "seasonal_naive_y_t_minus_12",
+    "test_window": "2024-01 to 2024-12",
+    "n_observations": 132,
+    "mae": 3.1711446949051396,
+    "rmse": 4.265151872241913,
+    "mean_error_bias": -0.2693116998282662,
+    "interpretation": "Forecast diagnostic only; it does not establish the causal effect of the fund."
+  },
+  "quality_checks": {
+    "panel_rows": 1056,
+    "region_count": 11,
+    "date_start": "2017-01",
+    "date_end": "2024-12",
+    "duplicate_region_month_rows": 0,
+    "missing_required_values": {
+      "youth_population_20_39": 0,
+      "youth_in_migration_20_39": 0,
+      "youth_out_migration_20_39": 0,
+      "youth_net_migration_20_39": 0,
+      "youth_net_migration_rate_per_1000": 0,
+      "aged_population_ratio_pct": 0,
+      "population_total": 0,
+      "employment_insured_persons": 0
+    },
+    "employment_yoy_structural_missing_rows": 132
+  }
+}

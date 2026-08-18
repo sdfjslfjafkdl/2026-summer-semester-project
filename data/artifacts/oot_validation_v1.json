@@ -1,0 +1,120 @@
+{
+  "artifact_version": "v1",
+  "generated_at": "2026-08-18T21:29:51+09:00",
+  "generated_by": "scripts/build_artifacts.py",
+  "method": "seasonal_naive_y_t_minus_12",
+  "method_label_ko": "계절 나이브(전년 동월) 예측",
+  "outcome": "youth_net_migration_rate_per_1000",
+  "outcome_unit": "명/천명",
+  "test_window": "2024-01 to 2024-12",
+  "n_observations": 132,
+  "mae": 3.1711446949051396,
+  "rmse": 4.265151872241913,
+  "mean_error_bias": -0.2693116998282662,
+  "interpretation": "Forecast diagnostic only; it does not establish the causal effect of the fund.",
+  "by_region": [
+    {
+      "region": "청주시",
+      "n_months": 12,
+      "actual_mean_rate": 0.3670227544388442,
+      "predicted_mean_rate": 0.7016024522767389,
+      "mean_error_bias": -0.3345796978378946,
+      "mae": 0.7961025713721864,
+      "rmse": 0.9724265047861128
+    },
+    {
+      "region": "충주시",
+      "n_months": 12,
+      "actual_mean_rate": -0.2525890725223662,
+      "predicted_mean_rate": 0.2183971086140303,
+      "mean_error_bias": -0.4709861811363966,
+      "mae": 1.3972616303012646,
+      "rmse": 1.7998334210242408
+    },
+    {
+      "region": "옥천군",
+      "n_months": 12,
+      "actual_mean_rate": -3.5668970942297293,
+      "predicted_mean_rate": -2.6622684930904814,
+      "mean_error_bias": -0.9046286011392484,
+      "mae": 2.024479920147952,
+      "rmse": 2.36812047479493
+    },
+    {
+      "region": "증평군",
+      "n_months": 12,
+      "actual_mean_rate": -1.6206628940381094,
+      "predicted_mean_rate": 0.9003119340173874,
+      "mean_error_bias": -2.520974828055497,
+      "mae": 2.6763599453242164,
+      "rmse": 3.2768869598868964
+    },
+    {
+      "region": "제천시",
+      "n_months": 12,
+      "actual_mean_rate": -3.6919036492068376,
+      "predicted_mean_rate": -1.697136628574459,
+      "mean_error_bias": -1.9947670206323789,
+      "mae": 2.88822591727565,
+      "rmse": 3.772578762490195
+    },
+    {
+      "region": "진천군",
+      "n_months": 12,
+      "actual_mean_rate": -0.1737682492536172,
+      "predicted_mean_rate": -0.2859335627718498,
+      "mean_error_bias": 0.1121653135182327,
+      "mae": 3.1449198860384864,
+      "rmse": 4.262092609029653
+    },
+    {
+      "region": "단양군",
+      "n_months": 12,
+      "actual_mean_rate": -3.514033099542026,
+      "predicted_mean_rate": -1.9365790848039548,
+      "mean_error_bias": -1.5774540147380716,
+      "mae": 3.42711655813214,
+      "rmse": 4.533991786462146
+    },
+    {
+      "region": "보은군",
+      "n_months": 12,
+      "actual_mean_rate": -4.120401085122468,
+      "predicted_mean_rate": -4.161978307323081,
+      "mean_error_bias": 0.0415772222006132,
+      "mae": 3.613011703487384,
+      "rmse": 4.259396907042443
+    },
+    {
+      "region": "영동군",
+      "n_months": 12,
+      "actual_mean_rate": -4.057427844320609,
+      "predicted_mean_rate": -4.811463239662287,
+      "mean_error_bias": 0.7540353953416785,
+      "mae": 3.9777890874033353,
+      "rmse": 4.5060374200532705
+    },
+    {
+      "region": "괴산군",
+      "n_months": 12,
+      "actual_mean_rate": -3.0315296697363068,
+      "predicted_mean_rate": -4.651304822545314,
+      "mean_error_bias": 1.6197751528090076,
+      "mae": 5.271479465423385,
+      "rmse": 6.720883825233409
+    },
+    {
+      "region": "음성군",
+      "n_months": 12,
+      "actual_mean_rate": 0.5521526467623327,
+      "predicted_mean_rate": -1.761255914796693,
+      "mean_error_bias": 2.313408561559026,
+      "mae": 5.6658449590505375,
+      "rmse": 6.5577243738006326
+    }
+  ],
+  "source_files": [
+    "chungbuk_baseline_results.json",
+    "chungbuk_oot_error_analysis_by_region.csv"
+  ]
+}
