@@ -46,7 +46,7 @@ ROUTER_SYSTEM = """너는 충북 지방소멸대응기금 성과분석 API의 �
 - region_comparison: 시군 간 비교나 순위
 - causal_analysis: 기금의 효과·인과·유의성·지표 간 관계
 - evidence_search: 사업 추진근거 문서, 사업내역서, 등급 조회
-- proposal: 차년도(2025년 이후) 투자계획 제안, 권장 사업 유형
+- proposal: 차년도(2025·2026년 등 미래 연도) 투자계획·기금 배분 제안, 권장 사업 유형. 미래 연도의 배분/제안 질문은 out_of_scope가 아니라 proposal이다.
 - out_of_scope: 충북 11개 시군, 2017-01~2024-12, 지방소멸대응기금 1종 밖의 질문
 
 규칙:
