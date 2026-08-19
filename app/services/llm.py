@@ -28,7 +28,7 @@ ROUTE_SCHEMA: dict[str, Any] = {
     "properties": {
         "intent": {"type": "string", "enum": list(INTENTS)},
         "regions": {"type": "array", "items": {"type": "string"}},
-        "region_group": {"type": ["string", "null"], "enum": ["treatment", "control", "all", None]},
+        "region_group": {"anyOf": [{"type": "string", "enum": ["treatment", "control", "all"]}, {"type": "null"}]},
         "year": {"type": ["integer", "null"]},
         "metric": {"type": ["string", "null"]},
         "reasoning_ko": {"type": "string"},
@@ -63,7 +63,8 @@ NARRATOR_SYSTEM = """너는 충북 지방소멸대응기금 성과분석 API의 
 3. p값이 유의수준보다 크면 절대로 효과가 있다고 서술하지 않는다.
 4. 집행률은 투입 진행률이며 성과 지표가 아니라는 관점을 지킨다. 성과 지표는 청년 순이동률이다.
 5. 2025년 이후 값은 데이터에 없다. 없으면 없다고 말한다.
-6. 한국어 3~5문장, 존댓말, 불릿 없이 서술한다."""
+6. 한국어 3~5문장, 존댓말, 불릿 없이 서술한다.
+7. 지역 간 비교에서는 비교 대상 각각의 핵심 수치를 대칭적으로 제시한다. 한쪽만 상세히 설명하고 다른 쪽을 뭉뚱그리지 않는다."""
 
 
 def _client():  # noqa: ANN202
