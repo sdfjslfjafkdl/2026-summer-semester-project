@@ -142,4 +142,91 @@ class ValidationArtifact(BaseModel):
         return self
 
 
-ArtifactKind = Literal["did", "validation"]
+class SpecRow(BaseModel):
+    """진단 사양 한 줄(기본 DID, 추세 통제 등)."""
+
+    model_config = {"extra": "forbid"}
+
+    label: str = Field(description="사양 이름", examples=["기본 DID", "처치군 추세 통제"])
+    coefficient: float = Field(description="추정 계수")
+    cluster_p: float = Field(ge=0, le=1, description="군집 표준오차 기반 p값")
+    wild_bootstrap_p: float = Field(ge=0, le=1, description="와일드 클러스터 부트스트랩 p값")
+    is_significant: bool = Field(description="유의성 판정. 부트스트랩 p와 alpha 기준 판정과 일치해야 한다.")
+
+
+class MechanismRow(BaseModel):
+    """원인 분해 진단 한 줄(전출률/전입률)."""
+
+    model_config = {"extra": "forbid"}
+
+    label: str = Field(description="지표 이름", examples=["청년 총전출률"])
+    coefficient: float
+    cluster_p: float = Field(ge=0, le=1)
+    wild_bootstrap_p: float = Field(ge=0, le=1)
+    note: str | None = Field(default=None, description="해석 메모")
+
+
+class Mechanism(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    specification: str = Field(description="어떤 사양의 값인지", examples=["처치군 추세 통제"])
+    out_migration_rate: MechanismRow
+    in_migration_rate: MechanismRow
+
+
+class ParallelTrend(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    linear_trend_p: float = Field(ge=0, le=1, description="처치군×선형추세 검정 p값")
+    leads_joint_p: float = Field(ge=0, le=1, description="처치군×연도 리드 공동검정 p값")
+    rejected: bool = Field(description="평행추세 기각 여부")
+    note: str | None = None
+
+
+class DiagnosticsArtifact(BaseModel):
+    """DID 강건성·진단 요약(v3). 여러 사양과 원인 분해, 평행추세를 한 번에 담는다.
+
+    효과 '입증'이 아니라 '검증 파이프라인·탐색적 추정'을 보여주는 용도다.
+    각 사양의 is_significant 는 부트스트랩 p값과 alpha 기준 판정과 일치해야 한다.
+    """
+
+    model_config = {"extra": "forbid"}
+
+    artifact_version: str
+    generated_at: str
+    generated_by: str | None = None
+
+    outcome: str = Field(examples=["youth_net_migration_rate_per_1000"])
+    outcome_unit: str = Field(examples=["명/천명"])
+    treated_regions: list[str] = Field(min_length=1)
+    control_regions: list[str] = Field(min_length=1)
+    sample_period: str = Field(examples=["2017-01~2024-12"])
+    alpha: Alpha = Field(default=0.05)
+
+    specifications: list[SpecRow] = Field(min_length=1, description="사양별 DID 결과")
+    mechanism: Mechanism | None = Field(default=None, description="전출/전입 원인 분해")
+    parallel_trend: ParallelTrend | None = Field(default=None)
+
+    conclusion_ko: str = Field(description="화면 표기용 종합 결론")
+    interpretation_cautions: list[str] = Field(
+        min_length=1, description="해석 주의 문구. 응답에 항상 함께 나간다."
+    )
+    source_files: list[str] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def _check_consistency(self) -> "DiagnosticsArtifact":
+        for spec in self.specifications:
+            expected = spec.wild_bootstrap_p < self.alpha
+            if spec.is_significant != expected:
+                raise ValueError(
+                    f"사양 '{spec.label}' 의 is_significant={spec.is_significant} 인데 "
+                    f"wild_bootstrap_p={spec.wild_bootstrap_p}, alpha={self.alpha} 기준 "
+                    f"판정은 {expected} 입니다. 유의성 표기를 임의로 바꿀 수 없습니다."
+                )
+        overlap = set(self.treated_regions) & set(self.control_regions)
+        if overlap:
+            raise ValueError(f"처치군과 비교군에 같은 지역이 있습니다: {sorted(overlap)}")
+        return self
+
+
+ArtifactKind = Literal["did", "validation", "diagnostics"]

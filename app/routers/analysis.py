@@ -9,9 +9,21 @@ from __future__ import annotations
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-from app.schemas.artifacts import DidArtifact, RegionErrorRow, ValidationArtifact
+from app.schemas.artifacts import (
+    DiagnosticsArtifact,
+    DidArtifact,
+    RegionErrorRow,
+    ValidationArtifact,
+)
 from app.schemas.envelope import Envelope, Meta
-from app.services.artifacts import DID_FILENAME, VALIDATION_FILENAME, did_store, validation_store
+from app.services.artifacts import (
+    DIAGNOSTICS_FILENAME,
+    DID_FILENAME,
+    VALIDATION_FILENAME,
+    diagnostics_store,
+    did_store,
+    validation_store,
+)
 
 router = APIRouter(prefix="/api/analysis", tags=["인과분석"])
 
@@ -323,6 +335,41 @@ def validation() -> Envelope[ValidationData]:
                 "예측 진단 지표이며 기금의 인과효과를 입증하지 않는다.",
                 "오차가 큰 시군일수록 전년 동월 패턴만으로는 설명되지 않는 변동이 크다는 뜻이다.",
                 f"원본: {', '.join(artifact.source_files) or '미기재'}",
+            ],
+        ),
+    )
+
+
+@router.get(
+    "/diagnostics",
+    response_model=Envelope[DiagnosticsArtifact],
+    summary="DID 강건성·진단 요약(v3)",
+    description=(
+        "여러 사양(기본 DID, 처치군 추세 통제)의 계수·군집 p·와일드 부트스트랩 p, "
+        "전출/전입 원인 분해, 평행추세 검정을 한 번에 반환한다. 계산은 하지 않고 아티팩트를 읽는다.\n\n"
+        "**모든 사양에서 통계적으로 유의한 효과가 확인되지 않았다.** 각 사양의 "
+        "`is_significant` 는 부트스트랩 p와 유의수준으로만 판정하며, 효과 '입증'이 아니라 "
+        "'검증 파이프라인·탐색적 추정'을 보여주는 용도다."
+    ),
+    responses={
+        200: {"description": "진단 요약."},
+        500: {"description": "아티팩트가 스키마와 맞지 않음. 어긋난 필드 목록이 함께 온다."},
+        503: {"description": "아티팩트 파일 없음."},
+    },
+)
+def diagnostics() -> Envelope[DiagnosticsArtifact]:
+    artifact = diagnostics_store.load()
+    return Envelope[DiagnosticsArtifact](
+        data=artifact,
+        meta=Meta(
+            source=DIAGNOSTICS_FILENAME,
+            as_of=artifact.sample_period.split("~")[-1],
+            data_status="actual",
+            notes=[
+                "이 서버는 추정을 수행하지 않고 사전 계산된 아티팩트를 검증해 반환한다.",
+                "모든 사양에서 통계적으로 유의한 효과는 확인되지 않았다(탐색적 추정).",
+                f"원본: {', '.join(artifact.source_files) or '미기재'}",
+                *artifact.interpretation_cautions,
             ],
         ),
     )
