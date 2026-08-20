@@ -56,7 +56,7 @@ uv run pytest                                # 104 tests (PDF가 있으면 107)
 |---|---|---|
 | 공통 | GET | `/api/health`, `/api/meta/regions`, `/api/meta/metrics`, `/api/meta/funds` |
 | 기금 대시보드 | GET | `/api/funds/{fund_id}/summary?year=2024`, `/regions?year=2024`, `/trend` |
-| 인과분석 | GET | `/api/panel/timeseries`, `/api/panel/group-timeseries`, `/api/analysis/did`, `/api/analysis/validation` |
+| 인과분석 | GET | `/api/panel/timeseries`, `/api/panel/group-timeseries`, `/api/analysis/did`, `/api/analysis/validation`, `/api/analysis/diagnostics` |
 | 제안 | GET | `/api/evidence/projects`, `/api/evidence/search?q=&grade=&purpose=`, `/api/proposal?year=2026` |
 | 질문 입력 | POST | `/api/chat` |
 
