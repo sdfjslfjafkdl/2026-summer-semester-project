@@ -176,6 +176,11 @@ def run_tools(route: Route) -> tuple[list[ToolCall], list[str]]:
         calls.append(_envelope_to_call("/api/analysis/did", {}, analysis_router.did()))
         calls.append(
             _envelope_to_call(
+                "/api/analysis/diagnostics", {}, analysis_router.diagnostics()
+            )
+        )
+        calls.append(
+            _envelope_to_call(
                 "/api/panel/group-timeseries",
                 {"metric": DEFAULT_METRIC, "freq": "year"},
                 panel_router.group_timeseries(
