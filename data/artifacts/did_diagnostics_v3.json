@@ -1,0 +1,64 @@
+{
+  "artifact_version": "v3",
+  "generated_at": "2026-08-20T00:00:00+09:00",
+  "generated_by": "hj (data analysis handoff v3)",
+  "outcome": "youth_net_migration_rate_per_1000",
+  "outcome_unit": "명/천명",
+  "treated_regions": ["제천시", "보은군", "옥천군", "영동군", "괴산군", "단양군"],
+  "control_regions": ["청주시", "충주시", "증평군", "진천군", "음성군"],
+  "sample_period": "2017-01~2024-12",
+  "alpha": 0.05,
+
+  "specifications": [
+    {
+      "label": "기본 DID",
+      "coefficient": 0.9496181198273685,
+      "cluster_p": 0.44552542077644663,
+      "wild_bootstrap_p": 0.574,
+      "is_significant": false
+    },
+    {
+      "label": "처치군 추세 통제",
+      "coefficient": 0.9680172339839347,
+      "cluster_p": 0.5854049914483458,
+      "wild_bootstrap_p": 0.5935935935935935,
+      "is_significant": false
+    }
+  ],
+
+  "mechanism": {
+    "specification": "처치군 추세 통제",
+    "out_migration_rate": {
+      "label": "청년 총전출률",
+      "coefficient": -1.6544693693618935,
+      "cluster_p": 0.3155800738495922,
+      "wild_bootstrap_p": 0.3793793793793794,
+      "note": "유출 완화 방향이나 처치군 추세 통제 시 유의성 소멸 → 경로 단정 불가"
+    },
+    "in_migration_rate": {
+      "label": "청년 총전입률",
+      "coefficient": -0.6864521353779605,
+      "cluster_p": 0.8047501115089508,
+      "wild_bootstrap_p": 0.8668668668668669
+    }
+  },
+
+  "parallel_trend": {
+    "linear_trend_p": 0.465,
+    "leads_joint_p": 0.467,
+    "rejected": false,
+    "note": "평행추세 기각 불가. 단 리드 계수가 2017 +3.29 → 2021 0으로 단조 하락(2021이 처치군 상대 저점)"
+  },
+
+  "conclusion_ko": "여러 사양(기본 DID, 처치군 추세 통제) 모두에서 통계적으로 유의한 효과가 확인되지 않았다. 점추정치는 +0.95명/천명 방향이나 와일드 클러스터 부트스트랩 p값이 0.57~0.59로 유의수준을 크게 넘는다. 국회예산정책처(NABO 2026) 평가의 '인구감소 완화 효과의 통계적 유의성 미확인' 결론과 정합적이다.",
+
+  "interpretation_cautions": [
+    "군집(시군) 11개의 소표본이므로 와일드 클러스터 부트스트랩을 병행했고, p값을 확정적 인과추론 근거로 제시하지 않는다.",
+    "도내 비교군은 처치군과 인구 이동으로 연결되어 SUTVA(전이 없음) 가정 위반 가능성이 있다. 처치군 개선의 일부는 지역 간 재배분일 수 있어 전국 순효과로 일반화할 수 없다.",
+    "이 산출물은 '효과 입증'이 아니라 '정책효과 검증 파이프라인 및 탐색적 추정'으로 제시한다. 개선은 점추정상 방향이며 통계적으로 유의한 효과가 아니다."
+  ],
+  "source_files": [
+    "did_event_study_results_v3_revised.json",
+    "충북_지방소멸대응기금_효과분석_최종보고서.md"
+  ]
+}

@@ -15,10 +15,11 @@ from pydantic import BaseModel, ValidationError
 
 from app.config import get_settings
 from app.errors import ApiError
-from app.schemas.artifacts import DidArtifact, ValidationArtifact
+from app.schemas.artifacts import DiagnosticsArtifact, DidArtifact, ValidationArtifact
 
 DID_FILENAME = "did_twfe_v1.json"
 VALIDATION_FILENAME = "oot_validation_v1.json"
+DIAGNOSTICS_FILENAME = "did_diagnostics_v3.json"
 
 T = TypeVar("T", bound=BaseModel)
 
@@ -101,4 +102,7 @@ class ArtifactStore(Generic[T]):
 did_store: ArtifactStore[DidArtifact] = ArtifactStore(DID_FILENAME, DidArtifact)
 validation_store: ArtifactStore[ValidationArtifact] = ArtifactStore(
     VALIDATION_FILENAME, ValidationArtifact
+)
+diagnostics_store: ArtifactStore[DiagnosticsArtifact] = ArtifactStore(
+    DIAGNOSTICS_FILENAME, DiagnosticsArtifact
 )
