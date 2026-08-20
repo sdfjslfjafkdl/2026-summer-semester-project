@@ -239,6 +239,29 @@ def _collect_numbers(node: Any, sink: set[float]) -> None:
             _collect_numbers(value, sink)
 
 
+def _as_float(token: str) -> float | None:
+    try:
+        return float(token.replace(",", ""))
+    except ValueError:
+        return None
+
+
+def question_numbers(question: str) -> set[float]:
+    """질문에 등장한 숫자.
+
+    사용자가 물은 값을 그대로 되받아 인용하는 것은 날조가 아니다. 오히려 이걸 막으면
+    "2025년 데이터는 없습니다" 처럼 우리가 가장 원하는 답변이 '2025' 때문에 폐기된다.
+    도구 결과에 없는 수치를 새로 주장하는 것은 여전히 걸린다.
+    """
+    numbers: set[float] = set()
+    for token in NUMBER_PATTERN.findall(question):
+        try:
+            numbers.add(float(token.replace(",", "")))
+        except ValueError:
+            continue
+    return numbers
+
+
 def allowed_numbers(tool_calls: list[ToolCall]) -> set[float]:
     """도구 결과에 실재하는 숫자와, 그 값의 반올림·백분율 표기 변형."""
     raw: set[float] = set()
@@ -507,7 +530,9 @@ def answer_question(question: str, history: list[dict] | None = None) -> ChatRes
         calls.append(run_evidence_search(question, route))
 
     fallback_answer = narrate_with_rules(question, route, calls)
-    allowed = allowed_numbers(calls)
+    from_tools = allowed_numbers(calls)
+    asked = question_numbers(question)
+    allowed = from_tools | asked
 
     narrator = "rules"
     answer = fallback_answer
@@ -531,6 +556,18 @@ def answer_question(question: str, history: list[dict] | None = None) -> ChatRes
         answer = GUARD_FALLBACK_ANSWER
         narrator = "guard_fallback"
 
+    # 도구 결과가 아니라 질문에서 인용한 숫자는 따로 드러낸다. 어떤 수치가 어디서 왔는지
+    # 추적할 수 있어야 하므로, 허용했다는 사실 자체를 응답에 남긴다.
+    echoed = sorted(
+        {
+            token
+            for token in NUMBER_PATTERN.findall(answer)
+            if _as_float(token) is not None
+            and any(abs(_as_float(token) - value) < 1e-6 for value in asked)
+            and not any(abs(_as_float(token) - value) < 1e-6 for value in from_tools)
+        }
+    )
+
     return ChatResult(
         route=route,
         tool_calls=calls,
@@ -541,7 +578,12 @@ def answer_question(question: str, history: list[dict] | None = None) -> ChatRes
             "passed": guard_passed,
             "checked_numbers_in_answer": len(NUMBER_PATTERN.findall(answer)),
             "rejected_numbers": guard_rejected + offending_final,
-            "policy": "답변의 모든 숫자는 호출된 Layer 1 엔드포인트 결과에 실재해야 한다.",
+            "numbers_echoed_from_question": echoed,
+            "policy": (
+                "답변의 모든 숫자는 호출된 Layer 1 엔드포인트 결과에 실재해야 한다. "
+                "예외적으로 질문에 있던 숫자를 되받아 인용하는 것은 허용하며, "
+                "그 숫자는 numbers_echoed_from_question 에 남긴다."
+            ),
         },
         narrator=narrator,
         notes=notes,

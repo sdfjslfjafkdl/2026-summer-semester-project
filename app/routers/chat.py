@@ -77,6 +77,14 @@ class NumericGuard(BaseModel):
     passed: bool = Field(description="답변의 모든 숫자가 도구 결과에 실재하는지")
     checked_numbers_in_answer: int
     rejected_numbers: list[str] = Field(description="도구 결과에 없어 거부된 숫자")
+    numbers_echoed_from_question: list[str] = Field(
+        default_factory=list,
+        description=(
+            "도구 결과가 아니라 질문에서 그대로 인용한 숫자. "
+            "예: '2025년 집행률' 질문에 '2025년 데이터는 없습니다' 라고 답한 경우의 2025."
+        ),
+        examples=[["2025"]],
+    )
     policy: str
 
 
