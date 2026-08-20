@@ -200,6 +200,51 @@ def test_guard_accepts_numbers_present_in_tool_results():
     assert chat_service.verify_numbers("집행률은 40.9%이고 총액은 46,400백만원입니다.", allowed) == []
 
 
+def test_guard_allows_numbers_echoed_from_the_question():
+    """질문에 있던 숫자를 되받는 것은 날조가 아니다.
+
+    이걸 막으면 '2025년 데이터는 없습니다' 처럼 우리가 가장 원하는 답변이 폐기된다.
+    """
+    from app.services import llm
+
+    calls = [
+        chat_service.ToolCall(endpoint="/api/test", params={}, data={"year": 2024}, meta={})
+    ]
+    allowed = chat_service.allowed_numbers(calls) | chat_service.question_numbers(
+        "2025년 제천시 집행률"
+    )
+    assert chat_service.verify_numbers("2025년 데이터는 없고 2024년까지만 있습니다.", allowed) == []
+
+
+def test_echoed_question_numbers_are_reported(monkeypatch):
+    """되받은 숫자는 허용하되, 어디서 왔는지 응답에 남긴다."""
+    from app.services import llm
+
+    monkeypatch.setattr(
+        llm,
+        "narrate",
+        lambda *args, **kwargs: "2025년 기금 데이터는 아직 없습니다. 확인 가능한 마지막 연도는 2024년입니다.",
+    )
+    result = chat_service.answer_question("2025년 제천시 집행률")
+    assert result.narrator == "llm"
+    assert result.numeric_guard["passed"] is True
+    assert "2025" in result.numeric_guard["numbers_echoed_from_question"]
+    # 도구 결과에도 있는 2024는 되받은 숫자로 세지 않는다
+    assert "2024" not in result.numeric_guard["numbers_echoed_from_question"]
+
+
+def test_invented_numbers_still_rejected_even_if_question_has_numbers(monkeypatch):
+    """질문에 숫자가 있어도 없는 수치를 새로 주장하면 여전히 걸린다."""
+    from app.services import llm
+
+    monkeypatch.setattr(
+        llm, "narrate", lambda *args, **kwargs: "2025년 제천시 집행률은 78.5%입니다."
+    )
+    result = chat_service.answer_question("2025년 제천시 집행률")
+    assert result.narrator != "llm"
+    assert "78.5" in result.numeric_guard["rejected_numbers"]
+
+
 def test_guard_rejects_invented_numbers():
     calls = [
         chat_service.ToolCall(

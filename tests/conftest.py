@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-import pytest
-from fastapi.testclient import TestClient
+import os
 
-from app.config import get_settings
-from app.data.panel import get_panel
-from app.main import create_app
+# 테스트는 네트워크를 타지 않는다. .env 에 LLM_ENABLED=true 가 있어도 규칙 경로로 고정한다.
+# (환경변수가 .env 보다 우선하므로 app.config 를 import 하기 전에 세팅해야 한다.)
+os.environ["LLM_ENABLED"] = "false"
+
+import pytest  # noqa: E402
+from fastapi.testclient import TestClient  # noqa: E402
+
+from app.config import get_settings  # noqa: E402
+from app.data.panel import get_panel  # noqa: E402
+from app.main import create_app  # noqa: E402
 
 # 사업내역서 PDF는 담당 공무원 실명이 있어 저장소에 올리지 않는다.
 # PDF가 없으면 근거 검색은 등록부(Markdown)만으로 동작하므로, PDF를 전제한 테스트만 건너뛴다.
