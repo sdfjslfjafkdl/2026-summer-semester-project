@@ -118,7 +118,15 @@ def _fund_year(route: Route) -> int:
     return max(FUND_YEARS)
 
 
-def run_tools(route: Route) -> tuple[list[ToolCall], list[str]]:
+_FUND_WORDS = re.compile(r"집행|기금|배분|돈|예산|투입|썼|쓴")
+
+
+def _is_fund_question(question: str) -> bool:
+    """비교 질문이 기금·집행률에 관한 것인지 원문 질문으로 판단한다."""
+    return bool(_FUND_WORDS.search(question))
+
+
+def run_tools(route: Route, question: str = "") -> tuple[list[ToolCall], list[str]]:
     calls: list[ToolCall] = [_scope_call()]
     notes: list[str] = []
     panel = get_panel()
@@ -147,6 +155,23 @@ def run_tools(route: Route) -> tuple[list[ToolCall], list[str]]:
         )
 
     elif route.intent in (INTENT_TIMESERIES, INTENT_COMPARISON):
+        # 지역 간 비교인데 질문이 기금·집행률에 관한 것이면, 패널 지표가 아니라
+        # 지역별 기금 집행 현황을 함께 넘긴다. 새 계산 없이 기존 funds/regions 를 재사용한다.
+        if route.intent == INTENT_COMPARISON and _is_fund_question(question):
+            year = _fund_year(route)
+            params = {"fund_id": DEFAULT_FUND, "year": year}
+            calls.append(
+                _envelope_to_call(
+                    f"/api/funds/{DEFAULT_FUND}/regions",
+                    params,
+                    funds_router.fund_regions(fund_id=DEFAULT_FUND, year=year),
+                )
+            )
+            notes.append(
+                "지역 간 기금 비교이므로 집행률은 지역별 집행액÷배분액이며, "
+                "성과 지표가 아니라 투입 진행률이다."
+            )
+
         metric = route.metric or DEFAULT_METRIC
         regions = route.regions or (
             panel.treated_regions if route.region_group == "treatment" else panel.region_names
@@ -530,7 +555,7 @@ def answer_question(question: str, history: list[dict] | None = None) -> ChatRes
     from app.services import llm
 
     route = llm.route_question(question)
-    calls, notes = run_tools(route)
+    calls, notes = run_tools(route, question)
     if route.intent == INTENT_EVIDENCE:
         calls.append(run_evidence_search(question, route))
 
