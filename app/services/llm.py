@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 from typing import Any
 
 from app.config import get_settings
@@ -46,13 +47,20 @@ ROUTER_SYSTEM = """너는 충북 지방소멸대응기금 성과분석 API의 �
 - region_comparison: 시군 간 비교나 순위
 - causal_analysis: 기금의 효과·인과·유의성·지표 간 관계
 - evidence_search: 사업 추진근거 문서, 사업내역서, 등급 조회
-- proposal: 차년도(2025·2026년 등 미래 연도) 투자계획·기금 배분 제안, 권장 사업 유형. 미래 연도의 배분/제안 질문은 out_of_scope가 아니라 proposal이다.
+- proposal: 차년도(2025·2026년 등 미래 연도) 투자계획·기금 배분 제안, 권장 사업 유형.
+  "어디에 배분할까", "무엇을 해야 하나" 처럼 앞으로의 계획을 묻는 질문이 여기 온다.
+  다만 미래 연도의 실적을 사실로 묻는 질문(예: "2025년 제천시 집행률")은 제안 요청이 아니라
+  존재하지 않는 데이터를 묻는 것이므로 out_of_scope 다.
 - out_of_scope: 충북 11개 시군, 2017-01~2024-12, 지방소멸대응기금 1종 밖의 질문
 
 규칙:
 - regions 에는 아래 목록에 있는 정확한 시군 이름만 넣는다. 없으면 빈 배열.
 - region_group 은 처치군(인구감소지역 6개)이면 treatment, 비교군이면 control, 충북 전체면 all, 아니면 null.
 - metric 은 아래 지표 키 목록에 있는 값이거나 null.
+- 지역 간 비교나 "어디가 제일 심한가/많이 빠져나갔나" 류 질문에는 인원수 지표를 고르지 않는다.
+  인원수(youth_out_migration_20_39 등)는 인구가 큰 청주시가 항상 1위가 되어 비교가 무의미하다.
+  유출·이탈·심각성을 묻는 질문의 기본값은 youth_net_migration_rate_per_1000 이고,
+  전출 자체를 콕 집어 물으면 youth_out_migration_rate_per_1000 처럼 비율 지표를 쓴다.
 - year 는 질문에 연도가 있으면 정수, 없으면 null."""
 
 NARRATOR_SYSTEM = """너는 충북 지방소멸대응기금 성과분석 API의 답변 작성자다.
@@ -68,10 +76,35 @@ NARRATOR_SYSTEM = """너는 충북 지방소멸대응기금 성과분석 API의 
 7. 지역 간 비교에서는 비교 대상 각각의 핵심 수치를 대칭적으로 제시한다. 한쪽만 상세히 설명하고 다른 쪽을 뭉뚱그리지 않는다.
 8. 단위를 바꾸지 않는다. 도구 결과가 백만원이면 백만원으로 쓴다(4,093백만원을 40.93억원으로 환산하지 않는다).
    비율은 execution_rate_pct 처럼 이미 퍼센트로 나온 값을 쓰고, 비율(0~1)에 100을 곱하지 않는다.
-9. 반올림은 소수 둘째 자리까지 허용한다. 63.953125% 는 63.95%로, -4.878363808287312명/천명은 -4.88명/천명으로
-   읽기 좋게 쓴다. 원본 정밀도를 그대로 나열하지 않는다.
+9. 도구 결과의 숫자는 이미 표시용으로 반올림되어 있다. 있는 그대로 쓰고 자릿수를 늘리지 않는다.
 10. 반올림 외의 계산은 하지 않는다. 두 값의 차이, 합계, 평균, 순위 점수를 직접 만들어 쓰지 않는다.
    도구 결과에 없는 숫자는 검증에서 걸려 답변 전체가 폐기된다."""
+
+
+def display_round(value: Any) -> Any:
+    """LLM에게 넘기는 도구 결과를 표시용 정밀도로 반올림한다.
+
+    프롬프트로 "반올림해서 써라"라고 부탁하면 지키다 말다 해서 42.857142857142854% 같은
+    값이 그대로 화면에 나갔다. 애초에 보여주지 않으면 인용할 수 없다.
+
+    절댓값 1 이상은 소수 둘째 자리(집행률 63.95%, 순이동률 -4.88명/천명),
+    1 미만은 넷째 자리(p값 0.4631, 계수 0.9496)까지 남긴다. p값과 계수는 두 자리로 줄이면
+    0.46, 0.95가 되어 발표에서 인용하던 값과 달라지기 때문이다.
+
+    API 응답값은 건드리지 않는다. 이 반올림은 LLM 입력에만 적용된다.
+    수치 검증은 원본의 반올림 변형도 허용하므로 그대로 통과한다.
+    """
+    if isinstance(value, bool) or value is None:
+        return value
+    if isinstance(value, float):
+        if math.isnan(value) or math.isinf(value):
+            return value
+        return round(value, 2) if abs(value) >= 1 else round(value, 4)
+    if isinstance(value, dict):
+        return {key: display_round(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [display_round(item) for item in value]
+    return value
 
 
 def _client():  # noqa: ANN202
@@ -151,7 +184,7 @@ def narrate(
     payload = {
         "question": question,
         "routing": route.to_dict(),
-        "tool_results": [call.to_dict() for call in tool_calls],
+        "tool_results": display_round([call.to_dict() for call in tool_calls]),
     }
     messages: list[dict] = []
     for turn in (history or [])[-6:]:

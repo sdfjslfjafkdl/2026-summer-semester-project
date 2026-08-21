@@ -1,7 +1,7 @@
 {"question": "제천시 집행률 알려줘", "intent": "fund_execution", "regions": ["제천시"]}
 {"question": "제천시 집행율 알려줘", "intent": "fund_execution", "regions": ["제천시"]}
 {"question": "충주시 집행률은?", "intent": "fund_execution", "regions": ["충주시"]}
-{"question": "2025년 제천시 집행률", "intent": "proposal"}
+{"question": "2025년 제천시 집행률", "intent": "out_of_scope", "answer_contains": ["2025"]}
 {"question": "제천이 옆동네들보다 돈 잘 썼어?", "intent": "region_comparison", "answer_contains": ["집행률"]}
 {"question": "괴산군 청년 순이동률 추이 보여줘", "intent": "metric_timeseries", "regions": ["괴산군"]}
 {"question": "청년 인구 어떻게 변하고 있어?", "intent": "metric_timeseries"}

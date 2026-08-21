@@ -200,6 +200,37 @@ def test_guard_accepts_numbers_present_in_tool_results():
     assert chat_service.verify_numbers("집행률은 40.9%이고 총액은 46,400백만원입니다.", allowed) == []
 
 
+def test_display_round_keeps_precision_where_it_matters():
+    """LLM 입력은 표시용으로 반올림한다. 프롬프트로 부탁하는 대신 아예 안 보여준다."""
+    from app.services.llm import display_round
+
+    assert display_round(42.857142857142854) == 42.86  # 집행률(%)
+    assert display_round(-4.878363808287312) == -4.88  # 명/천명
+    assert display_round(0.46314203447465774) == 0.4631  # p값은 넷째 자리까지
+    assert display_round(0.9496181198273366) == 0.9496  # 계수도 넷째 자리까지
+    assert display_round(228025.0) == 228025.0
+    assert display_round(True) is True and display_round(None) is None
+    assert display_round({"a": [1.23456, {"b": 0.123456}]}) == {"a": [1.23, {"b": 0.1235}]}
+
+
+def test_display_rounded_values_still_pass_the_guard():
+    """반올림한 값을 인용해도 수치 검증을 통과해야 한다."""
+    from app.services.llm import display_round
+
+    calls = [
+        chat_service.ToolCall(
+            endpoint="/api/test",
+            params={},
+            data={"execution_rate_pct": 42.857142857142854, "p_value": 0.46314203447465774},
+            meta={},
+        )
+    ]
+    allowed = chat_service.allowed_numbers(calls)
+    rounded = display_round(calls[0].data)
+    answer = f"집행률은 {rounded['execution_rate_pct']}%이고 p값은 {rounded['p_value']}입니다."
+    assert chat_service.verify_numbers(answer, allowed) == []
+
+
 def test_guard_allows_numbers_echoed_from_the_question():
     """질문에 있던 숫자를 되받는 것은 날조가 아니다.
 
