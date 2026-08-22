@@ -25,7 +25,7 @@ uv pip install -e ".[dev]"
 cp .env.example .env
 uv run python scripts/build_artifacts.py     # data/artifacts/ 생성 (최초 1회)
 uv run uvicorn app.main:app --reload --port 8000
-uv run pytest                                # 122개 (PDF가 있으면 125개)
+uv run pytest                                # 127개 (PDF가 있으면 130개)
 ```
 
 - OpenAPI 문서는 http://localhost:8000/docs (프론트는 이 문서만으로 연동 가능)
@@ -208,7 +208,7 @@ uv run python evals/run_eval.py
 
 - 네트워크 없이 결정적으로 동작. `conftest.py`에서 테스트 세션의 LLM을 강제 비활성화
 - `.env`에 `LLM_ENABLED=true`가 있어도 실제 API 호출 없음
-- 122개 통과. 사업내역서 PDF가 있으면 PDF 전제 테스트 3개가 추가되어 125개
+- 127개 통과. 사업내역서 PDF가 있으면 PDF 전제 테스트 3개가 추가되어 130개
 
 ---
 
@@ -265,7 +265,12 @@ docker compose up --build      # .env 를 읽고 app/ 을 바인드 마운트해
 2. **볼륨 추가** — 서비스의 *Variables → Volumes*에서 마운트 경로를 **`/app/data/runtime`** 으로 지정한다.
    근거 검색 캐시가 여기에 쌓인다. 볼륨이 비어 있어도 서버는 정상 기동하며, 첫 검색 요청이 캐시를 만든다.
    볼륨을 붙이지 않아도 동작한다 — 재기동할 때마다 캐시를 다시 만들 뿐이다.
-3. **환경변수 설정** — *Variables* 탭에서 최소한 다음을 넣는다. `PORT`는 넣지 않는다(자동 주입).
+3. **시작 커맨드는 비워 둔다** — 이미지의 `CMD`(`python -m app.server`)가 실행된다.
+   *Settings → Deploy → Custom Start Command* 에 값이 들어 있으면 지운다.
+   여기에 `uvicorn ... --port ${PORT:-8000}` 같은 걸 넣으면 Railway가 쉘 없이 실행해서
+   `${PORT:-8000}`이 문자열 그대로 넘어가 `is not a valid integer`로 죽는다.
+   꼭 직접 지정해야 한다면 쉘 확장이 없는 `python -m app.server` 를 쓴다.
+4. **환경변수 설정** — *Variables* 탭에서 최소한 다음을 넣는다. `PORT`는 넣지 않는다(자동 주입).
    ```
    CORS_ORIGINS=https://impact-advisor-ai.lovable.app
    LLM_ENABLED=true
@@ -273,11 +278,11 @@ docker compose up --build      # .env 를 읽고 app/ 을 바인드 마운트해
    LLM_TIMEOUT_SECONDS=60
    ```
    키를 넣지 않으면 규칙 기반으로만 동작한다. 데모는 그대로 돌아간다.
-4. **배포 확인** — 헬스체크 경로는 `railway.json`에 `/api/health`로 설정되어 있다.
+5. **배포 확인** — 헬스체크 경로는 `railway.json`에 `/api/health`로 설정되어 있다.
    배포 로그에서 `패널 적재 완료: 1056행` 을 확인하고, 공개 도메인에서
    `GET /api/health`가 `panel_rows: 1056`을 반환하는지 본다.
-5. **도메인 발급** — *Settings → Networking → Generate Domain* 으로 공개 URL을 만든다.
-6. **프론트 연결** — 프론트에서 이 URL을 API 베이스로 지정하고, 아래처럼 프론트 도메인을 CORS에 추가한다.
+6. **도메인 발급** — *Settings → Networking → Generate Domain* 으로 공개 URL을 만든다.
+7. **프론트 연결** — 프론트에서 이 URL을 API 베이스로 지정하고, 아래처럼 프론트 도메인을 CORS에 추가한다.
 
 ### 13.5 배포 후 프론트 도메인 추가
 

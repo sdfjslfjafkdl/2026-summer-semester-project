@@ -81,18 +81,44 @@ def test_railway_healthcheck_matches_real_route(client):
     assert client.get(HEALTHCHECK_PATH).status_code == 200
 
 
-def test_start_command_reads_injected_port():
-    """Railway 는 PORT 를 주입한다. 기본값 8000 은 유지한다.
+def test_port_is_read_in_python_not_by_the_shell():
+    """시작 커맨드에 쉘 확장을 쓰지 않는다.
 
-    시작 커맨드는 이미지 CMD 한 곳에만 둔다. railway.json 에 startCommand 를 또 적으면
-    쉘 확장 여부가 플랫폼 구현에 달리게 되어, ${PORT:-8000} 이 문자열 그대로
-    uvicorn 에 넘어갈 위험이 있다.
+    Railway 가 시작 커맨드를 쉘 없이 실행해 '${PORT:-8000}' 이 문자열 그대로
+    uvicorn 에 넘어가면서 "is not a valid integer" 로 죽은 적이 있다.
+    포트를 읽는 주체를 파이썬으로 옮겨 실행 방식과 무관하게 만든다.
     """
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
     railway = json.loads((PROJECT_ROOT / "railway.json").read_text(encoding="utf-8"))
-    assert "${PORT:-8000}" in dockerfile
-    assert 'CMD ["sh", "-c"' in dockerfile, "쉘을 거쳐야 PORT 가 확장된다"
+
+    assert 'CMD ["python", "-m", "app.server"]' in dockerfile
+    assert "${PORT" not in dockerfile.split("CMD")[-1], "CMD 에 쉘 확장이 남아 있습니다"
     assert "startCommand" not in railway["deploy"], "시작 커맨드는 Dockerfile CMD 한 곳에만 둔다"
+
+
+def test_resolve_port_handles_every_input():
+    """포트 때문에 서버가 못 뜨는 상황을 만들지 않는다."""
+    from app.server import DEFAULT_PORT, resolve_port
+
+    assert resolve_port("8080") == 8080
+    assert resolve_port(" 3000 ") == 3000
+    assert resolve_port(None if "PORT" not in __import__("os").environ else "8000") in (
+        DEFAULT_PORT,
+        8000,
+    )
+    # 플랫폼이 이상한 값을 줘도 기본값으로 뜬다
+    assert resolve_port("") == DEFAULT_PORT
+    assert resolve_port("${PORT:-8000}") == DEFAULT_PORT  # 실제로 겪은 값
+    assert resolve_port("not-a-number") == DEFAULT_PORT
+    assert resolve_port("0") == DEFAULT_PORT
+    assert resolve_port("99999") == DEFAULT_PORT
+
+
+def test_server_module_binds_all_interfaces():
+    """컨테이너 밖에서 접근하려면 0.0.0.0 에 바인딩해야 한다."""
+    from app.server import DEFAULT_HOST
+
+    assert DEFAULT_HOST == "0.0.0.0"
 
 
 def test_no_buildkit_cache_mounts():

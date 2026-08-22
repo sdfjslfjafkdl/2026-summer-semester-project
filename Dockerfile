@@ -80,5 +80,7 @@ USER appuser
 
 EXPOSE 8000
 
-# Railway 가 주입하는 PORT 를 읽고, 없으면 8000 으로 뜬다.
-CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# PORT 는 app/server.py 가 파이썬에서 직접 읽는다(기본값 8000).
+# 쉘 확장(--port ${PORT:-8000})에 기대면, 시작 커맨드를 쉘 없이 실행하는 플랫폼에서
+# 문자열이 그대로 uvicorn 에 넘어가 "is not a valid integer" 로 죽는다.
+CMD ["python", "-m", "app.server"]
