@@ -89,12 +89,24 @@ def test_start_command_reads_injected_port():
     assert "${PORT:-8000}" in railway["deploy"]["startCommand"]
 
 
-def test_cache_mounts_declare_an_id():
-    """Railway 의 Metal 빌더는 cache mount 에 id 가 없으면 dockerfile invalid 로 거부한다."""
+def test_no_buildkit_cache_mounts():
+    """BuildKit cache mount 를 쓰지 않는다.
+
+    Railway 는 mount id 에 서비스별 cacheKey 접두사(s/<service-id>-...)를 요구한다.
+    그걸 박으면 Dockerfile 이 특정 서비스에 묶여 로컬에서 빌드할 수 없게 되므로,
+    이식성을 택하고 도커 레이어 캐시에 맡긴다.
+    """
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
-    for line in dockerfile.splitlines():
-        if "--mount=type=cache" in line:
-            assert "id=" in line, f"cache mount 에 id 가 없습니다: {line.strip()}"
+    offending = [line.strip() for line in dockerfile.splitlines() if "--mount=type=cache" in line]
+    assert not offending, f"Railway 가 거부하는 cache mount 가 있습니다: {offending}"
+
+
+def test_dependency_layer_is_separate_from_source():
+    """의존성 설치가 소스 COPY 보다 앞에 와야 레이어 캐시가 산다."""
+    lines = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8").splitlines()
+    install_at = next(i for i, line in enumerate(lines) if "uv pip install" in line)
+    source_at = next(i for i, line in enumerate(lines) if line.strip().startswith("COPY app"))
+    assert install_at < source_at
 
 
 def test_image_does_not_bake_secrets():
