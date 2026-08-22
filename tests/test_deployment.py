@@ -82,11 +82,17 @@ def test_railway_healthcheck_matches_real_route(client):
 
 
 def test_start_command_reads_injected_port():
-    """Railway 는 PORT 를 주입한다. 기본값 8000 은 유지한다."""
+    """Railway 는 PORT 를 주입한다. 기본값 8000 은 유지한다.
+
+    시작 커맨드는 이미지 CMD 한 곳에만 둔다. railway.json 에 startCommand 를 또 적으면
+    쉘 확장 여부가 플랫폼 구현에 달리게 되어, ${PORT:-8000} 이 문자열 그대로
+    uvicorn 에 넘어갈 위험이 있다.
+    """
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
     railway = json.loads((PROJECT_ROOT / "railway.json").read_text(encoding="utf-8"))
     assert "${PORT:-8000}" in dockerfile
-    assert "${PORT:-8000}" in railway["deploy"]["startCommand"]
+    assert 'CMD ["sh", "-c"' in dockerfile, "쉘을 거쳐야 PORT 가 확장된다"
+    assert "startCommand" not in railway["deploy"], "시작 커맨드는 Dockerfile CMD 한 곳에만 둔다"
 
 
 def test_no_buildkit_cache_mounts():
