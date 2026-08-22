@@ -35,11 +35,15 @@ ENV PATH="/opt/venv/bin:$PATH" \
 COPY app ./app
 COPY scripts ./scripts
 COPY data/raw ./data/raw
+# 분석 담당자가 건네준 아티팩트(예: did_diagnostics_v3.json)는 저장소가 원본이다.
+# 스크립트로 만들 수 없으므로 그대로 가져온다.
+COPY data/artifacts ./data/artifacts
 
-# 빌드 시점에 v1 아티팩트를 만들어 이미지에 굽는다.
+# 스크립트가 만드는 v1 두 개는 빌드 시점에 다시 생성해 덮어쓴다.
 RUN python scripts/build_artifacts.py && \
     test -f data/artifacts/did_twfe_v1.json && \
-    test -f data/artifacts/oot_validation_v1.json
+    test -f data/artifacts/oot_validation_v1.json && \
+    test -f data/artifacts/did_diagnostics_v3.json
 
 # ─────────────────────────────────────────────────────────────────────
 # 런타임 스테이지: 인터프리터와 가상환경, 데이터만 담는다.

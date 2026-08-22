@@ -191,17 +191,43 @@ def test_cors_origins_come_from_environment(monkeypatch):
     assert settings.cors_origins == ["https://a.example", "https://b.example"]
 
 
-def test_artifacts_are_present_for_runtime():
-    """아티팩트는 빌드 시점에 만들어 이미지에 포함한다. 런타임 생성은 하지 않는다."""
-    artifact_dir = get_settings().resolve(get_settings().artifact_dir)
-    assert (artifact_dir / "did_twfe_v1.json").exists()
-    assert (artifact_dir / "oot_validation_v1.json").exists()
+def _declared_artifact_filenames() -> list[str]:
+    """코드가 요구하는 아티팩트 파일명 전부."""
+    from app.services import artifacts as artifacts_module
 
+    return sorted(
+        value
+        for name, value in vars(artifacts_module).items()
+        if name.endswith("_FILENAME") and isinstance(value, str)
+    )
+
+
+def test_every_declared_artifact_exists():
+    artifact_dir = get_settings().resolve(get_settings().artifact_dir)
+    missing = [name for name in _declared_artifact_filenames() if not (artifact_dir / name).exists()]
+    assert not missing, f"코드가 요구하는 아티팩트가 없습니다: {missing}"
+
+
+def test_every_artifact_reaches_the_image():
+    """아티팩트가 이미지에 들어가는지 파일 단위로 확인한다.
+
+    build_artifacts.py 가 만드는 것은 v1 두 개뿐이고, 진단 아티팩트처럼 분석 담당자가
+    건네주는 파일은 저장소가 원본이다. .dockerignore 로 data/artifacts 를 통째로
+    제외했다가 실제 배포에서 did_diagnostics_v3.json 이 빠져 503 이 난 적이 있다.
+    새 아티팩트가 늘면 Dockerfile 의 존재 검사도 함께 늘어나야 한다.
+    """
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
     assert "scripts/build_artifacts.py" in dockerfile
+    assert "COPY data/artifacts" in dockerfile, "생성되지 않는 아티팩트를 가져오려면 복사가 필요하다"
 
     ignored = set((PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8").split())
-    assert "data/artifacts" in ignored, "빌드 스테이지가 새로 만들므로 복사 대상이 아니다"
+    assert "data/artifacts" not in ignored, "통째로 제외하면 담당자 제공 아티팩트가 빠진다"
+
+    unchecked = [
+        name for name in _declared_artifact_filenames()
+        if f"test -f data/artifacts/{name}" not in dockerfile
+    ]
+    assert not unchecked, f"Dockerfile 에 존재 검사가 없는 아티팩트: {unchecked}"
 
 
 def test_compose_mounts_source_for_reload():
