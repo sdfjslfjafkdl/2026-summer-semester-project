@@ -89,6 +89,14 @@ def test_start_command_reads_injected_port():
     assert "${PORT:-8000}" in railway["deploy"]["startCommand"]
 
 
+def test_cache_mounts_declare_an_id():
+    """Railway 의 Metal 빌더는 cache mount 에 id 가 없으면 dockerfile invalid 로 거부한다."""
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    for line in dockerfile.splitlines():
+        if "--mount=type=cache" in line:
+            assert "id=" in line, f"cache mount 에 id 가 없습니다: {line.strip()}"
+
+
 def test_image_does_not_bake_secrets():
     """ANTHROPIC_API_KEY 는 런타임 환경변수로만 받는다."""
     dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")

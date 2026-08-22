@@ -18,7 +18,9 @@ WORKDIR /app
 
 # 의존성 레이어를 소스와 분리해 캐시가 살아 있게 한다.
 COPY pyproject.toml README.md ./
-RUN --mount=type=cache,target=/root/.cache/uv \
+# Railway 의 Metal 빌더는 cache mount 에 id 를 요구한다(없으면 dockerfile invalid).
+# BuildKit 표준 문법이라 로컬 docker build 에서도 그대로 동작한다.
+RUN --mount=type=cache,id=uv-cache,target=/root/.cache/uv \
     uv venv /opt/venv && \
     VIRTUAL_ENV=/opt/venv uv pip install -r pyproject.toml
 
