@@ -15,6 +15,7 @@ PDF 파싱 결과(청크)는 data/index/ 에 캐싱하고 원본 파일 지문�
 from __future__ import annotations
 
 import json
+import logging
 import math
 import re
 from collections import Counter
@@ -23,6 +24,8 @@ from pathlib import Path
 
 from app.config import get_settings
 from app.data.evidence import EvidenceCorpus, get_corpus
+
+logger = logging.getLogger(__name__)
 
 INDEX_VERSION = 3
 INDEX_FILENAME = "evidence_chunks.json"
@@ -143,9 +146,18 @@ def _build_chunks(corpus: EvidenceCorpus) -> list[Chunk]:
 
 
 def _index_path() -> Path:
+    """캐시 파일 경로. 디렉터리를 만들지 못해도 예외를 올리지 않는다.
+
+    배포 환경에서는 이 경로가 마운트된 볼륨(Railway 등)이라 처음엔 비어 있고,
+    권한에 따라 쓰기가 막힐 수도 있다. 캐시는 원본에서 언제든 다시 만들 수 있는
+    부가물이므로, 캐시 때문에 검색 요청이 실패해서는 안 된다.
+    """
     settings = get_settings()
     directory = settings.resolve(settings.index_dir)
-    directory.mkdir(parents=True, exist_ok=True)
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        logger.warning("인덱스 캐시 디렉터리를 만들지 못했습니다(%s). 메모리에서만 사용합니다.", exc)
     return directory / INDEX_FILENAME
 
 
@@ -248,21 +260,25 @@ def load_chunks(force_rebuild: bool = False) -> list[Chunk]:
                 and cached.get("fingerprint") == fingerprint
             ):
                 return [Chunk(**c) for c in cached["chunks"]]
-        except (json.JSONDecodeError, KeyError, TypeError):
-            pass  # 캐시가 깨졌으면 조용히 다시 만든다
+        except (json.JSONDecodeError, KeyError, TypeError, OSError):
+            pass  # 캐시가 깨졌거나 읽을 수 없으면 조용히 다시 만든다
 
     chunks = _build_chunks(corpus)
-    path.write_text(
-        json.dumps(
-            {
-                "index_version": INDEX_VERSION,
-                "fingerprint": fingerprint,
-                "chunks": [asdict(c) for c in chunks],
-            },
-            ensure_ascii=False,
-        ),
-        encoding="utf-8",
-    )
+    try:
+        path.write_text(
+            json.dumps(
+                {
+                    "index_version": INDEX_VERSION,
+                    "fingerprint": fingerprint,
+                    "chunks": [asdict(c) for c in chunks],
+                },
+                ensure_ascii=False,
+            ),
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        # 캐시를 못 써도 검색은 그대로 동작한다. 다음 기동에서 다시 만들어 본다.
+        logger.warning("인덱스 캐시를 저장하지 못했습니다(%s). 기동 시마다 새로 만듭니다.", exc)
     return chunks
 
 

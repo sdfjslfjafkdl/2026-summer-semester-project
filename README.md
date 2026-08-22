@@ -25,7 +25,7 @@ uv pip install -e ".[dev]"
 cp .env.example .env
 uv run python scripts/build_artifacts.py     # data/artifacts/ 생성 (최초 1회)
 uv run uvicorn app.main:app --reload --port 8000
-uv run pytest                                # 107개 (PDF가 있으면 110개)
+uv run pytest                                # 122개 (PDF가 있으면 125개)
 ```
 
 - OpenAPI 문서는 http://localhost:8000/docs (프론트는 이 문서만으로 연동 가능)
@@ -208,11 +208,101 @@ uv run python evals/run_eval.py
 
 - 네트워크 없이 결정적으로 동작. `conftest.py`에서 테스트 세션의 LLM을 강제 비활성화
 - `.env`에 `LLM_ENABLED=true`가 있어도 실제 API 호출 없음
-- 107개 통과. 사업내역서 PDF가 있으면 PDF 전제 테스트 3개가 추가되어 110개
+- 122개 통과. 사업내역서 PDF가 있으면 PDF 전제 테스트 3개가 추가되어 125개
 
 ---
 
-## 13. 프로젝트 구조
+## 13. 배포
+
+컨테이너 이미지 하나로 배포한다. 분석 아티팩트는 **빌드 시점에 구워** 넣으므로 런타임에
+계산이 끼지 않고, 컨테이너마다 다른 산출물이 나올 여지가 없다.
+
+### 13.1 로컬에서 이미지 빌드·실행
+
+```bash
+docker build -t chungbuk-api .
+docker run --rm -p 8000:8000 \
+  -e CORS_ORIGINS="https://impact-advisor-ai.lovable.app,http://localhost:5173" \
+  chungbuk-api
+
+curl -s localhost:8000/api/health | python3 -m json.tool   # panel_rows: 1056
+```
+
+LLM까지 켜서 확인하려면 키를 **런타임 환경변수로만** 넘긴다 (이미지에 굽지 않는다):
+
+```bash
+docker run --rm -p 8000:8000 \
+  -e LLM_ENABLED=true -e ANTHROPIC_API_KEY="$ANTHROPIC_API_KEY" \
+  chungbuk-api
+```
+
+### 13.2 로컬 개발 (소스 리로드)
+
+```bash
+docker compose up --build      # .env 를 읽고 app/ 을 바인드 마운트해 --reload 로 실행
+```
+
+### 13.3 환경변수 전체 목록
+
+| 변수 | 기본값 | 설명 |
+|---|---|---|
+| `PORT` | `8000` | 서버 포트. **Railway가 자동 주입**하므로 배포 시 직접 설정하지 않는다 |
+| `APP_ENV` | `local` | 이미지에서는 `production` |
+| `LOG_LEVEL` | `INFO` | |
+| `CORS_ORIGINS` | lovable 도메인 | 콤마 구분. 프론트 도메인을 여기에 넣는다 |
+| `LLM_ENABLED` | `false` | `false`면 규칙 기반 라우터·서술로 동작 |
+| `ANTHROPIC_API_KEY` | (없음) | **런타임 환경변수로만.** 비어 있으면 `LLM_ENABLED=true`여도 규칙 기반으로 폴백 |
+| `ANTHROPIC_MODEL` | `claude-opus-5` | |
+| `LLM_TIMEOUT_SECONDS` | `60` | 서술 호출이 9~13초라 20초는 부족하다 |
+| `INDEX_DIR` | `data/index` | 근거 검색 캐시. 이미지에서는 `/app/data/runtime/index` |
+| `ARTIFACT_DIR` | `data/artifacts` | 분석 아티팩트. 이미지에 포함되어 있다 |
+| `DATA_DIR`, `PANEL_CSV`, `OOT_REGION_CSV`, `PANEL_README_MD`, `EVIDENCE_REGISTER_MD`, `EVIDENCE_PDF_DIR` | `.env.example` 참고 | 원자료 경로. 기본값으로 두면 된다 |
+
+### 13.4 Railway 배포 절차
+
+1. **프로젝트 생성** — Railway 대시보드에서 *New Project → Deploy from GitHub repo* 로 이 저장소를 선택한다.
+   `railway.json`이 있으므로 빌더는 자동으로 Dockerfile을 쓴다.
+2. **볼륨 추가** — 서비스의 *Variables → Volumes*에서 마운트 경로를 **`/app/data/runtime`** 으로 지정한다.
+   근거 검색 캐시가 여기에 쌓인다. 볼륨이 비어 있어도 서버는 정상 기동하며, 첫 검색 요청이 캐시를 만든다.
+   볼륨을 붙이지 않아도 동작한다 — 재기동할 때마다 캐시를 다시 만들 뿐이다.
+3. **환경변수 설정** — *Variables* 탭에서 최소한 다음을 넣는다. `PORT`는 넣지 않는다(자동 주입).
+   ```
+   CORS_ORIGINS=https://impact-advisor-ai.lovable.app
+   LLM_ENABLED=true
+   ANTHROPIC_API_KEY=sk-ant-...
+   LLM_TIMEOUT_SECONDS=60
+   ```
+   키를 넣지 않으면 규칙 기반으로만 동작한다. 데모는 그대로 돌아간다.
+4. **배포 확인** — 헬스체크 경로는 `railway.json`에 `/api/health`로 설정되어 있다.
+   배포 로그에서 `패널 적재 완료: 1056행` 을 확인하고, 공개 도메인에서
+   `GET /api/health`가 `panel_rows: 1056`을 반환하는지 본다.
+5. **도메인 발급** — *Settings → Networking → Generate Domain* 으로 공개 URL을 만든다.
+6. **프론트 연결** — 프론트에서 이 URL을 API 베이스로 지정하고, 아래처럼 프론트 도메인을 CORS에 추가한다.
+
+### 13.5 배포 후 프론트 도메인 추가
+
+CORS는 코드가 아니라 환경변수로 관리한다. 프론트 도메인이 늘어나면 Railway *Variables* 에서
+`CORS_ORIGINS` 값에 콤마로 이어 붙이고 재배포하면 된다.
+
+```
+CORS_ORIGINS=https://impact-advisor-ai.lovable.app,https://preview--impact-advisor-ai.lovable.app,http://localhost:5173
+```
+
+- 스킴(`https://`)까지 정확히 적는다. 경로나 끝 슬래시는 넣지 않는다
+- 미리보기·스테이징 도메인이 따로 있으면 각각 추가한다
+- 목록에 없는 오리진의 프리플라이트 요청은 400으로 거부된다 (의도된 동작)
+
+### 13.6 이미지에 대해 알아둘 점
+
+- **비root(`appuser`, uid 10001)로 실행**한다. 볼륨 소유자가 root라 캐시를 못 써도 검색은
+  200으로 동작한다 — 캐시는 원본에서 다시 만들 수 있는 부가물이라 요청을 실패시키지 않는다
+- **사업내역서 PDF는 저장소에 없으므로 이미지에도 없다.** 근거 검색은 등록부 3건 기준으로 동작한다.
+  PDF를 포함하려면 빌드 전에 `data/raw/evidence/pdf/`에 넣는다
+- `.dockerignore`가 `tests`, `evals`, `.git`, `.venv`, `data/index`를 제외한다
+
+---
+
+## 14. 프로젝트 구조
 
 ```
 app/
@@ -224,10 +314,15 @@ app/
   routers/             엔드포인트
 data/
   raw/                 원자료 (수정 금지)
-  artifacts/           분석 결과 v1 아티팩트
-  index/               근거 검색 캐시 (git 제외)
+  artifacts/           분석 결과 v1 아티팩트 (빌드 시 생성)
+  index/               근거 검색 캐시 — 로컬 (git 제외)
+  runtime/index/       근거 검색 캐시 — 컨테이너, Railway 볼륨 마운트 지점
 evals/
   run_eval.py          표준 질의 평가 러너
 scripts/build_artifacts.py
 tests/
+Dockerfile             멀티스테이지 (빌드: uv + 아티팩트 생성 / 런타임: slim, 비root)
+docker-compose.yml     로컬 개발용 (.env + 소스 바인드 마운트 + --reload)
+railway.json           빌더·시작 커맨드·헬스체크(/api/health)
+.dockerignore
 ```
