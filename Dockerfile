@@ -25,8 +25,12 @@ COPY pyproject.toml README.md ./
 RUN uv venv /opt/venv && \
     VIRTUAL_ENV=/opt/venv uv pip install -r pyproject.toml
 
+# 의존성만 설치하고 프로젝트 자체는 설치하지 않는다(소스를 그대로 복사해 쓴다).
+# 그래서 app 패키지를 찾으려면 /app 이 import 경로에 있어야 한다.
+# 로컬은 uv pip install -e . 로 편집 설치돼 있어 이 문제가 드러나지 않는다.
 ENV PATH="/opt/venv/bin:$PATH" \
-    VIRTUAL_ENV=/opt/venv
+    VIRTUAL_ENV=/opt/venv \
+    PYTHONPATH=/app
 
 COPY app ./app
 COPY scripts ./scripts
@@ -61,6 +65,7 @@ RUN mkdir -p /app/data/runtime/index && chown -R appuser:appuser /app/data/runti
 
 ENV PATH="/opt/venv/bin:$PATH" \
     VIRTUAL_ENV=/opt/venv \
+    PYTHONPATH=/app \
     PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     APP_ENV=production \

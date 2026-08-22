@@ -101,6 +101,19 @@ def test_no_buildkit_cache_mounts():
     assert not offending, f"Railway 가 거부하는 cache mount 가 있습니다: {offending}"
 
 
+def test_dockerfile_puts_project_on_import_path():
+    """이미지는 의존성만 설치하고 프로젝트 자체는 설치하지 않는다.
+
+    따라서 /app 이 import 경로에 있어야 `app` 패키지를 찾는다. 로컬 개발 환경은
+    `uv pip install -e .` 로 편집 설치돼 있어 이 문제가 드러나지 않는다.
+    빌드 스테이지(아티팩트 생성)와 런타임 스테이지(uvicorn) 양쪽 모두 필요하다.
+    """
+    dockerfile = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8")
+    assert dockerfile.count("PYTHONPATH=/app") >= 2, (
+        "빌드·런타임 두 스테이지 모두에 PYTHONPATH=/app 이 있어야 합니다"
+    )
+
+
 def test_dependency_layer_is_separate_from_source():
     """의존성 설치가 소스 COPY 보다 앞에 와야 레이어 캐시가 산다."""
     lines = (PROJECT_ROOT / "Dockerfile").read_text(encoding="utf-8").splitlines()
