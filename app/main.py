@@ -24,6 +24,7 @@ from app.routers import (
     health,
     meta,
     panel as panel_router,
+    plan,
     proposal,
 )
 
@@ -86,6 +87,7 @@ def create_app() -> FastAPI:
     app.include_router(analysis.router)
     app.include_router(evidence.router)
     app.include_router(proposal.router)
+    app.include_router(plan.router)
     app.include_router(chat.router)
     return app
 

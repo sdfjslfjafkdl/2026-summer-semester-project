@@ -25,7 +25,7 @@ uv pip install -e ".[dev]"
 cp .env.example .env
 uv run python scripts/build_artifacts.py     # data/artifacts/ 생성 (최초 1회)
 uv run uvicorn app.main:app --reload --port 8000
-uv run pytest                                # 127개 (PDF가 있으면 130개)
+uv run pytest                                # 161개 (PDF가 있으면 164개)
 ```
 
 - OpenAPI 문서는 http://localhost:8000/docs (프론트는 이 문서만으로 연동 가능)
@@ -71,6 +71,8 @@ uv run pytest                                # 127개 (PDF가 있으면 130개)
 | 인과분석 | GET | `/api/panel/timeseries`, `/api/panel/group-timeseries`, `/api/analysis/did`, `/api/analysis/validation`, `/api/analysis/diagnostics` |
 | 제안 | GET | `/api/evidence/projects`, `/api/evidence/search?q=&grade=&purpose=`, `/api/proposal?year=2026` |
 | 질문 입력 | POST | `/api/chat` |
+| 투자계획서 작성 | POST | `/api/plan/draft`, `/api/plan/{plan_id}/sections/{section_id}`, `/api/plan/{plan_id}/revise`, `/api/plan/{plan_id}/export` |
+| 투자계획서 조회 | GET | `/api/plan/{plan_id}`, `/api/plan/{plan_id}/summary` |
 
 `fund_id`는 현재 `local-extinction` 1종.
 
@@ -204,20 +206,84 @@ uv run python evals/run_eval.py
 
 ---
 
-## 12. 테스트
+## 12. 투자계획서 작성 지원
 
-- 네트워크 없이 결정적으로 동작. `conftest.py`에서 테스트 세션의 LLM을 강제 비활성화
-- `.env`에 `LLM_ENABLED=true`가 있어도 실제 API 호출 없음
-- 127개 통과. 사업내역서 PDF가 있으면 PDF 전제 테스트 3개가 추가되어 130개
+완성본을 만드는 도구가 아니다. **데이터로 채울 수 있는 곳만 채우고, 사람이 결정해야 하는 곳은
+구획과 작성 지침으로 남겨 넘긴다.** 서식은 한국지방재정공제회 '2026년 지방소멸대응기금
+투자계획서 작성 안내서'(2025.1)를 따르며, 서식에 없는 항목은 만들지 않는다.
+
+### 채움 모드
+
+레지스트리는 [app/data/plan_sections.py](app/data/plan_sections.py)에 있고 27개 항목을 담는다.
+
+| 모드 | 뜻 | 해당 항목 |
+|---|---|---|
+| `auto` | 패널·아티팩트로 서버가 채운다 | Ⅰ-1 인구현황·인구변동 추이, Ⅵ-2-① 연도별 소계 |
+| `assisted` | 사람이 값을 주면 서식 톤 문장으로 만든다 | Ⅰ-2, Ⅲ-1, Ⅲ-3, Ⅲ-4-①, Ⅲ-별첨 |
+| `manual` | 서버가 채우지 않고 빈 구획과 지침만 넣는다 | Ⅱ 전체, Ⅲ-2, Ⅲ-4-⑤, Ⅲ-5, Ⅳ, Ⅴ, Ⅵ-1 등 |
+
+### 흐름
+
+```bash
+# 1. 초안 생성 — Layer 1 엔드포인트를 호출해 auto 섹션을 채운다
+curl -X POST localhost:8000/api/plan/draft -H 'content-type: application/json' \
+  -d '{"region": "제천시", "year": 2026}'
+
+# 2. 사람이 섹션을 채운다 (manual 은 그대로 저장, assisted 는 문장으로 만든다)
+curl -X POST localhost:8000/api/plan/plan_제천시_2026_01/sections/3-2 \
+  -H 'content-type: application/json' -d '{"content": "부지는 신월동 시유지, 민원 없음"}'
+
+# 3. 자연어로 고친다 (대상을 못 찾으면 되묻는다)
+curl -X POST localhost:8000/api/plan/plan_제천시_2026_01/revise \
+  -H 'content-type: application/json' -d '{"instruction": "Ⅲ-3 목표를 보수적으로"}'
+
+# 4. 내보낸다
+curl -X POST localhost:8000/api/plan/plan_제천시_2026_01/export \
+  -H 'content-type: application/json' -d '{"format": "docx"}' -o 계획서_초안.docx
+```
+
+### 지켜지는 것
+
+- **수치 가드가 문서에도 적용된다.** 계획서에 등장한 숫자는 `called_endpoints` 결과에 실재해야
+  하고, 없는 숫자가 든 문장은 버려진다. 담당자가 직접 넣은 값은 예외로 허용하되
+  `data_points` 의 `source_endpoint` 가 `human_input` 으로 표시된다
+- **인과효과를 단정하지 않는다.** 모든 응답의 `meta.notes` 에 그 사실이 실린다
+- **Ⅵ-2 는 사업 단위로 분해하지 않는다.** 패널이 지역-연도 단위라 연도별 소계만 자동으로 채우고
+  사업별 행은 담당자 몫으로 남긴다. `values` 에 사업별 합계를 넣으면(예: `{"2022_배분액": 4800}`)
+  자동 집계 소계와 대조해 어긋나면 경고를 낸다
+- **Ⅲ-3 사업목표**는 안내서가 단순 실적지표(예산 집행률)를 금지하므로 청년 순이동률을 지표 후보로
+  제시하고, 측정방법 문장과 연차별 목표값 후보를 패널에서 도출한다. 목표값 산출 규칙은
+  `plan_builder.goal_targets` 주석에 있다
+- **LLM 이 꺼져 있어도** auto 채움과 manual 구획 생성은 그대로 동작하고 assisted 만 템플릿 문장이 된다
+
+### 내보내기
+
+- docx 는 안내서의 목차(Ⅰ~Ⅵ)와 형식 규정(본문 휴먼명조 15pt, 참고사항 중고딕 13pt,
+  여백 15/15/20/20mm, 머리말·꼬리말 10mm, 쪽번호)을 반영한다
+- manual 구획은 회색 음영과 `[담당자 작성 필요]` 표시, 안내서의 【작성내용】과
+  【기술 방향과 평가의 주안점】이 함께 들어간다
+- 휴먼명조·중고딕은 한글(HWP) 글꼴이라 서버에 없는 경우가 많다. 없으면 대체 글꼴을 쓰고
+  그 사실을 로그와 `X-Plan-Notes` 응답 헤더에 남긴다
+- 문서 첫 장에 **초안이며 실제 제출은 hwp 서식으로 변환해야 한다**는 안내가 들어간다
+- 작성 중인 계획서는 `PLAN_DIR`(컨테이너 기본값 `data/runtime/plans`)에 저장된다.
+  볼륨이 없으면 메모리에만 있으므로 재시작 시 사라지고, 그 사실을 `meta.notes` 로 알린다
 
 ---
 
-## 13. 배포
+## 13. 테스트
+
+- 네트워크 없이 결정적으로 동작. `conftest.py`에서 테스트 세션의 LLM을 강제 비활성화
+- `.env`에 `LLM_ENABLED=true`가 있어도 실제 API 호출 없음
+- 161개 통과. 사업내역서 PDF가 있으면 PDF 전제 테스트 3개가 추가되어 164개
+
+---
+
+## 14. 배포
 
 컨테이너 이미지 하나로 배포한다. 분석 아티팩트는 **빌드 시점에 구워** 넣으므로 런타임에
 계산이 끼지 않고, 컨테이너마다 다른 산출물이 나올 여지가 없다.
 
-### 13.1 로컬에서 이미지 빌드·실행
+### 14.1 로컬에서 이미지 빌드·실행
 
 ```bash
 docker build -t chungbuk-api .
@@ -236,13 +302,13 @@ docker run --rm -p 8000:8000 \
   chungbuk-api
 ```
 
-### 13.2 로컬 개발 (소스 리로드)
+### 14.2 로컬 개발 (소스 리로드)
 
 ```bash
 docker compose up --build      # .env 를 읽고 app/ 을 바인드 마운트해 --reload 로 실행
 ```
 
-### 13.3 환경변수 전체 목록
+### 14.3 환경변수 전체 목록
 
 | 변수 | 기본값 | 설명 |
 |---|---|---|
@@ -256,9 +322,10 @@ docker compose up --build      # .env 를 읽고 app/ 을 바인드 마운트해
 | `LLM_TIMEOUT_SECONDS` | `60` | 서술 호출이 9~13초라 20초는 부족하다 |
 | `INDEX_DIR` | `data/index` | 근거 검색 캐시. 이미지에서는 `/app/data/runtime/index` |
 | `ARTIFACT_DIR` | `data/artifacts` | 분석 아티팩트. 이미지에 포함되어 있다 |
+| `PLAN_DIR` | `data/runtime/plans` | 작성 중인 투자계획서. 볼륨이 없으면 메모리에만 남는다 |
 | `DATA_DIR`, `PANEL_CSV`, `OOT_REGION_CSV`, `PANEL_README_MD`, `EVIDENCE_REGISTER_MD`, `EVIDENCE_PDF_DIR` | `.env.example` 참고 | 원자료 경로. 기본값으로 두면 된다 |
 
-### 13.4 Railway 배포 절차
+### 14.4 Railway 배포 절차
 
 1. **프로젝트 생성** — Railway 대시보드에서 *New Project → Deploy from GitHub repo* 로 이 저장소를 선택한다.
    `railway.json`이 있으므로 빌더는 자동으로 Dockerfile을 쓴다.
@@ -284,7 +351,7 @@ docker compose up --build      # .env 를 읽고 app/ 을 바인드 마운트해
 6. **도메인 발급** — *Settings → Networking → Generate Domain* 으로 공개 URL을 만든다.
 7. **프론트 연결** — 프론트에서 이 URL을 API 베이스로 지정하고, 아래처럼 프론트 도메인을 CORS에 추가한다.
 
-### 13.5 배포 후 프론트 도메인 추가
+### 14.5 배포 후 프론트 도메인 추가
 
 CORS는 코드가 아니라 환경변수로 관리한다. 프론트 도메인이 늘어나면 Railway *Variables* 에서
 `CORS_ORIGINS` 값에 콤마로 이어 붙이고 재배포하면 된다.
@@ -297,7 +364,7 @@ CORS_ORIGINS=https://impact-advisor-ai.lovable.app,https://preview--impact-advis
 - 미리보기·스테이징 도메인이 따로 있으면 각각 추가한다
 - 목록에 없는 오리진의 프리플라이트 요청은 400으로 거부된다 (의도된 동작)
 
-### 13.6 이미지에 대해 알아둘 점
+### 14.6 이미지에 대해 알아둘 점
 
 - **비root(`appuser`, uid 10001)로 실행**한다. 볼륨 소유자가 root라 캐시를 못 써도 검색은
   200으로 동작한다 — 캐시는 원본에서 다시 만들 수 있는 부가물이라 요청을 실패시키지 않는다
@@ -307,7 +374,7 @@ CORS_ORIGINS=https://impact-advisor-ai.lovable.app,https://preview--impact-advis
 
 ---
 
-## 14. 프로젝트 구조
+## 15. 프로젝트 구조
 
 ```
 app/
@@ -319,9 +386,11 @@ app/
   routers/             엔드포인트
 data/
   raw/                 원자료 (수정 금지)
+  raw/plan_template/   투자계획서 서식 안내서 PDF (git 제외, 팀 내부 공유)
   artifacts/           분석 결과 v1 아티팩트 (빌드 시 생성)
   index/               근거 검색 캐시 — 로컬 (git 제외)
   runtime/index/       근거 검색 캐시 — 컨테이너, Railway 볼륨 마운트 지점
+  runtime/plans/       작성 중인 투자계획서
 evals/
   run_eval.py          표준 질의 평가 러너
 scripts/build_artifacts.py

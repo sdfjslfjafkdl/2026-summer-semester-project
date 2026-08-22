@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     evidence_pdf_dir: Path = Path("data/raw/evidence/pdf")
     artifact_dir: Path = Path("data/artifacts")
     index_dir: Path = Path("data/index")
+    plan_template_dir: Path = Path("data/raw/plan_template")
+    # 작성 중인 투자계획서. 런타임 쓰기가 발생하며, 쓰기가 막히면 메모리에만 둔다.
+    plan_dir: Path = Path("data/runtime/plans")
 
     # NoDecode: 콤마 구분 문자열을 JSON으로 파싱하지 않고 아래 validator 가 처리한다.
     cors_origins: Annotated[list[str], NoDecode] = Field(
