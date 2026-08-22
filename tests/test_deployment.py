@@ -20,6 +20,19 @@ from app.services import evidence_search
 HEALTHCHECK_PATH = "/api/health"
 
 
+def dockerignore_patterns() -> set[str]:
+    """.dockerignore 의 실제 패턴만. 주석과 빈 줄은 뺀다.
+
+    공백 분리로 읽으면 주석에 적힌 경로가 패턴으로 잡혀 테스트가 거짓 판정을 낸다.
+    """
+    text = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8")
+    return {
+        line.strip()
+        for line in text.splitlines()
+        if line.strip() and not line.strip().startswith("#")
+    }
+
+
 @pytest.fixture
 def empty_index_dir(tmp_path, monkeypatch):
     """캐시가 전혀 없는 상태. Railway 볼륨을 처음 붙였을 때와 같다."""
@@ -163,12 +176,11 @@ def test_image_does_not_bake_secrets():
             continue
         assert "ANTHROPIC_API_KEY" not in stripped, f"Dockerfile 이 키를 굽고 있습니다: {line}"
 
-    ignored = (PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8").split()
-    assert ".env" in ignored, ".env 가 이미지에 들어가면 안 됩니다"
+    assert ".env" in dockerignore_patterns(), ".env 가 이미지에 들어가면 안 됩니다"
 
 
 def test_dockerignore_excludes_runtime_and_dev_paths():
-    ignored = set((PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8").split())
+    ignored = dockerignore_patterns()
     for path in ("tests", "evals", "data/index", ".pytest_cache", "__pycache__", ".git", ".venv"):
         assert path in ignored, f".dockerignore 에 {path} 가 없습니다"
 
@@ -220,8 +232,7 @@ def test_every_artifact_reaches_the_image():
     assert "scripts/build_artifacts.py" in dockerfile
     assert "COPY data/artifacts" in dockerfile, "생성되지 않는 아티팩트를 가져오려면 복사가 필요하다"
 
-    ignored = set((PROJECT_ROOT / ".dockerignore").read_text(encoding="utf-8").split())
-    assert "data/artifacts" not in ignored, "통째로 제외하면 담당자 제공 아티팩트가 빠진다"
+    assert "data/artifacts" not in dockerignore_patterns(), "통째로 제외하면 담당자 제공 아티팩트가 빠진다"
 
     unchecked = [
         name for name in _declared_artifact_filenames()
